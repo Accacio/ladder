@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 
 typedef uint32_t b32;
@@ -34,18 +35,18 @@ enum
 void
 contact_update (contact *_contact)
 {
-  switch (_contact->contact_type) {
+  switch (_contact->contact_type)
+    {
     case NORMALLY_OPEN:
       _contact->output = *(_contact->variable) && *(_contact->input);
       break;
     case NORMALLY_CLOSED:
-            _contact->output = !(*(_contact->variable)) && *(_contact->input);
+      _contact->output = !(*(_contact->variable)) && *(_contact->input);
       break;
     default:
       break;
-        }
+    }
 }
-
 
 #define RED 1
 #define GREEN 2
@@ -71,7 +72,7 @@ print_contact (contact *_contact)
       printf (" ");
       break;
     case NORMALLY_CLOSED:
-      printf("\\");
+      printf ("\\");
       break;
     default:
       break;
@@ -90,26 +91,24 @@ typedef struct
 
 enum
 {
-COIL_NORMAL,
-/* TODO(accacio): implement set and reset */
+  COIL_NORMAL,
+  /* TODO(accacio): implement set and reset */
 } coil_type;
-
 
 void
 coil_update (coil *_coil)
 {
-  switch(_coil->coil_type)
-  {
-    case COIL_NORMAL:
+  switch (_coil->coil_type)
     {
-      _coil->output = *(_coil->input);
-      *(_coil->variable) = *(_coil->input);
-
-    }
+    case COIL_NORMAL:
+      {
+        _coil->output = *(_coil->input);
+        *(_coil->variable) = *(_coil->input);
+      }
       break;
     default:
       break;
-  }
+    }
 }
 
 void
@@ -147,32 +146,51 @@ typedef union
 
 enum
 {
-CONTACT,
-COIL,
+  CONTACT,
+  COIL,
 } element_type;
 
 void
-print_element(element * _element)
+print_element (element *_element)
 {
-  switch (_element->elm_type) {
+  switch (_element->elm_type)
+    {
     case COIL:
-      print_coil((coil*)_element);
+      print_coil ((coil *) _element);
       break;
     case CONTACT:
-      print_contact((contact*)_element);
+      print_contact ((contact *) _element);
+      break;
       break;
     default:
       break;
-        }
+    }
+}
 
+typedef struct _element_list
+{
+  element *data;
+  s32 count;
+  s32 max;
+} element_list;
 
+void
+element_list_init (element_list *list)
+{
+  list->max = 10;
+  list->count = 0;
+  list->data = malloc (list->max * sizeof (element));
+  memset(list->data, 0, list->max*sizeof(element));
+}
+void
+element_list_destroy (element_list *list)
+{
+  free(list->data);
 }
 
 typedef struct
 {
-  element *elements;
-  s32 nelements;
-  s32 max_elements;
+  element_list *elements;
   b32 rail;
 } rung;
 
@@ -180,51 +198,58 @@ void
 rung_init (rung *_rung)
 {
   _rung->rail = 1;
-  _rung->max_elements = 10;
-  _rung->elements = malloc (_rung->max_elements * sizeof (element));
-  _rung->nelements = 0;
+  _rung->elements = malloc(sizeof(element_list));
+  memset(_rung->elements,0,sizeof(element_list));
+  element_list_init(_rung->elements);
 }
+void
+rung_destroy (rung *_rung)
+{
+  element_list_destroy(_rung->elements);
+  free(_rung->elements);
+}
+
 void
 rung_add_contact (rung *_rung, contact *_contact)
 {
-  assert (_rung->nelements < _rung->max_elements);
-  contact *cur_element = (contact*) (_rung->elements + _rung->nelements);
+  assert (_rung->elements->count < _rung->elements->max);
+  contact *cur_element = (contact *) &(_rung->elements->data[_rung->elements->count]);
   *cur_element = *_contact;
-  if (_rung->nelements == 0)
+  if (_rung->elements->count == 0)
     {
       cur_element->input = &(_rung->rail);
     }
   else
     {
-      cur_element->input
-          = &(((contact*)(_rung->elements + (_rung->nelements - 1)))->output);
+      cur_element->input = &(
+          ((contact *) (_rung->elements + (_rung->elements->count - 1)))->output);
     }
-  _rung->nelements += 1;
+  _rung->elements->count += 1;
 }
 void
 rung_add_coil (rung *_rung, coil *_coil)
 {
-  assert (_rung->nelements < _rung->max_elements);
-  coil *cur_element = (coil*)(_rung->elements + _rung->nelements);
+  assert (_rung->elements->count < _rung->elements->max);
+  coil *cur_element = (coil *) &(_rung->elements->data[_rung->elements->count]);
   *cur_element = *_coil;
-  if (_rung->nelements == 0)
+  if (_rung->elements->count == 0)
     {
       cur_element->input = &(_rung->rail);
     }
   else
     {
       cur_element->input
-          = &(((coil*)_rung->elements + (_rung->nelements - 1))->output);
+          = &(((coil *) _rung->elements + (_rung->elements->count - 1))->output);
     }
-  _rung->nelements += 1;
+  _rung->elements->count += 1;
 }
 
 void
 rung_update (rung *_rung)
 {
-  for (int i = 0; i < _rung->nelements; i++)
+  for (int i = 0; i < _rung->elements->count; i++)
     {
-      contact *cur_element = (contact*) (_rung->elements + i);
+      contact *cur_element = (contact *) &(_rung->elements->data[i]);
       contact_update (cur_element);
     }
   printf ("\n");
@@ -232,9 +257,9 @@ rung_update (rung *_rung)
 void
 print_rung (rung *_rung)
 {
-  for (int i = 0; i < _rung->nelements; i++)
+  for (int i = 0; i < _rung->elements->count; i++)
     {
-      print_element (_rung->elements + i);
+      print_element (_rung->elements->data + i);
     }
   printf ("\n");
 }
@@ -274,6 +299,7 @@ main (int argc, char *argv[])
   rung_update (&myrung);
   print_rung (&myrung);
 
+  rung_destroy(&myrung);
   /* myrung.elements; */
   /* printf ("%d\n", (myrung.elements)->output); */
   return 0;
