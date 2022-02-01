@@ -25,9 +25,9 @@ main (int argc, char *argv[])
   rung myrung = { 0 };
   rung_init (&myrung);
   /* contact_a.input = &myrung.rail; */
-  rung_add_contact (&myrung, &contact_a);
-  rung_add_contact (&myrung, &contact_b);
-  rung_add_coil (&myrung, &coil_a);
+  rung_add_element (&myrung, (element *) &contact_a);
+  rung_add_element (&myrung, (element *) &contact_b);
+  rung_add_element (&myrung, (element *) &coil_a);
 
   rung_update (&myrung);
   print_rung (&myrung);
@@ -35,11 +35,11 @@ main (int argc, char *argv[])
   rung_update (&myrung);
   print_rung (&myrung);
   a = 0;
-  b=1;
+  b = 1;
   rung_update (&myrung);
   print_rung (&myrung);
 
-  rung_destroy(&myrung);
+  rung_destroy (&myrung);
   /* myrung.elements; */
   /* printf ("%d\n", (myrung.elements)->output); */
   return 0;

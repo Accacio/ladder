@@ -4,15 +4,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include "./utils.h"
 
 typedef struct
 {
   s32 elm_type;
-  s8 contact_type;
-  b32 *variable;
   b32 *input;
   b32 output;
+  s8 contact_type;
+  b32 *variable;
 } contact;
 
 enum
@@ -73,10 +74,10 @@ print_contact (contact *_contact)
 typedef struct
 {
   s32 elm_type;
-  s8 coil_type;
-  b32 *variable;
   b32 *input;
   b32 output;
+  s8 coil_type;
+  b32 *variable;
 } coil;
 
 enum
@@ -133,10 +134,10 @@ typedef struct _element_list element_list;
 typedef struct
 {
   s32 elm_type;
-  element_list *branch_up;
-  element_list *branch_down;
   b32 *input;
   b32 output;
+  element_list *branch_up;
+  element_list *branch_down;
 } branch;
 
 void
@@ -147,7 +148,12 @@ print_branch (branch *_branch)
 
 typedef union _element
 {
-  s32 elm_type;
+  struct
+  {
+    s32 elm_type;
+    b32 *input;
+    b32 output;
+  };
   coil elm_coil;
   contact elm_contact;
   branch elm_branch;
@@ -192,12 +198,30 @@ element_list_init (element_list *list)
   list->max = 10;
   list->count = 0;
   list->data = malloc (list->max * sizeof (element));
-  memset(list->data, 0, list->max*sizeof(element));
+  memset (list->data, 0, list->max * sizeof (element));
 }
+
+void
+element_list_add (element_list *list, element *_element, b32 *initial)
+{
+  element *cur_element = &list->data[list->count];
+  *cur_element = *_element;
+  if (list->count == 0)
+    {
+      cur_element->input = (initial);
+    }
+  else
+    {
+      cur_element->input = &(list->data[list->count - 1]).output;
+    }
+
+  list->count += 1;
+}
+
 void
 element_list_destroy (element_list *list)
 {
-  free(list->data);
+  free (list->data);
 }
 
 typedef struct
@@ -210,50 +234,21 @@ void
 rung_init (rung *_rung)
 {
   _rung->rail = 1;
-  _rung->elements = malloc(sizeof(element_list));
-  memset(_rung->elements,0,sizeof(element_list));
-  element_list_init(_rung->elements);
+  _rung->elements = malloc (sizeof (element_list));
+  memset (_rung->elements, 0, sizeof (element_list));
+  element_list_init (_rung->elements);
 }
 void
 rung_destroy (rung *_rung)
 {
-  element_list_destroy(_rung->elements);
-  free(_rung->elements);
+  element_list_destroy (_rung->elements);
+  free (_rung->elements);
 }
 
 void
-rung_add_contact (rung *_rung, contact *_contact)
+rung_add_element (rung *_rung, element *_element)
 {
-  assert (_rung->elements->count < _rung->elements->max);
-  contact *cur_element = (contact *) &(_rung->elements->data[_rung->elements->count]);
-  *cur_element = *_contact;
-  if (_rung->elements->count == 0)
-    {
-      cur_element->input = &(_rung->rail);
-    }
-  else
-    {
-      cur_element->input = &(
-          ((contact *) (_rung->elements + (_rung->elements->count - 1)))->output);
-    }
-  _rung->elements->count += 1;
-}
-void
-rung_add_coil (rung *_rung, coil *_coil)
-{
-  assert (_rung->elements->count < _rung->elements->max);
-  coil *cur_element = (coil *) &(_rung->elements->data[_rung->elements->count]);
-  *cur_element = *_coil;
-  if (_rung->elements->count == 0)
-    {
-      cur_element->input = &(_rung->rail);
-    }
-  else
-    {
-      cur_element->input
-          = &(((coil *) _rung->elements + (_rung->elements->count - 1))->output);
-    }
-  _rung->elements->count += 1;
+  element_list_add(_rung->elements, _element, &_rung->rail);
 }
 
 void
@@ -275,6 +270,5 @@ print_rung (rung *_rung)
     }
   printf ("\n");
 }
-
 
 #endif // LADDER_H_
