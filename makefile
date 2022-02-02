@@ -3,13 +3,14 @@
 #
 OBJ=ladder
 
+-include $(OBJ).d
 $(OBJ): $(OBJ).c
-	$(CC) $< $(LIBS) -g -o $@
+	$(CC) $< $(LIBS) -g -MMD -o $@
 
 run:
 	./$(OBJ)
 
 clean:
-	rm -rf $(OBJ)
+	rm -rf $(OBJ) $(OBJ).d
 
 # end
