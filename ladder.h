@@ -14,6 +14,7 @@ typedef struct
   b32 output;
   s8 contact_type;
   b32 *variable;
+  b32 variable_old;
 } contact;
 
 enum
@@ -29,10 +30,12 @@ contact_update (contact *_contact)
   switch (_contact->contact_type)
     {
     case NORMALLY_OPEN:
-      _contact->output = *(_contact->variable) && *(_contact->input);
+      _contact->variable_old =*(_contact->variable);
+      _contact->output =  _contact->variable_old && *(_contact->input);
       break;
     case NORMALLY_CLOSED:
-      _contact->output = !(*(_contact->variable)) && *(_contact->input);
+      _contact->variable_old =*(_contact->variable);
+      _contact->output = !_contact->variable_old && *(_contact->input);
       break;
     default:
       break;
@@ -50,7 +53,7 @@ print_contact (contact *_contact)
   s32 variable_color = RED;
   if (*_contact->input)
     input_color = GREEN;
-  if (*_contact->variable)
+  if (_contact->variable_old)
     variable_color = GREEN;
   if (_contact->output)
     output_color = GREEN;
@@ -60,7 +63,7 @@ print_contact (contact *_contact)
   switch (_contact->contact_type)
     {
     case NORMALLY_OPEN:
-      printf (" ");
+      printf ("▪");
       break;
     case NORMALLY_CLOSED:
       printf ("\\");
@@ -130,6 +133,7 @@ print_coil (coil *_coil)
 
 typedef union _element element;
 typedef struct _element_list element_list;
+void element_list_add (element_list *, element *, b32 *);
 
 typedef struct
 {
@@ -141,9 +145,14 @@ typedef struct
 } branch;
 
 void
-print_branch (branch *_branch)
+branch_add_element_up (branch *_branch, element *_element)
 {
-  printf ("STUB\n");
+  element_list_add (_branch->branch_up, _element, _branch->input);
+}
+void
+branch_add_element_down (branch *_branch, element *_element)
+{
+  element_list_add (_branch->branch_down, _element, _branch->input);
 }
 
 typedef union _element
@@ -166,6 +175,9 @@ enum
   BRANCH,
 } element_type;
 
+void print_branch (branch *);
+void branch_update (branch *);
+
 void
 print_element (element *_element)
 {
@@ -179,6 +191,25 @@ print_element (element *_element)
       break;
     case BRANCH:
       print_branch ((branch *) _element);
+      break;
+    default:
+      break;
+    }
+}
+
+void
+element_update (element *_element)
+{
+  switch (_element->elm_type)
+    {
+    case COIL:
+      coil_update ((coil *) _element);
+      break;
+    case CONTACT:
+      contact_update ((contact *) _element);
+      break;
+    case BRANCH:
+      branch_update ((branch *) _element);
       break;
     default:
       break;
@@ -248,7 +279,7 @@ rung_destroy (rung *_rung)
 void
 rung_add_element (rung *_rung, element *_element)
 {
-  element_list_add(_rung->elements, _element, &_rung->rail);
+  element_list_add (_rung->elements, _element, &_rung->rail);
 }
 
 void
@@ -256,10 +287,8 @@ rung_update (rung *_rung)
 {
   for (int i = 0; i < _rung->elements->count; i++)
     {
-      contact *cur_element = (contact *) &(_rung->elements->data[i]);
-      contact_update (cur_element);
+      element_update (&(_rung->elements->data[i]));
     }
-  printf ("\n");
 }
 void
 print_rung (rung *_rung)
@@ -269,6 +298,71 @@ print_rung (rung *_rung)
       print_element (_rung->elements->data + i);
     }
   printf ("\n");
+}
+
+void
+branch_init (branch *_branch)
+{
+  _branch->branch_up = malloc (sizeof (element_list));
+  memset (_branch->branch_up, 0, sizeof (element_list));
+  element_list_init (_branch->branch_up);
+
+  _branch->branch_down = malloc (sizeof (element_list));
+  memset (_branch->branch_down, 0, sizeof (element_list));
+  element_list_init (_branch->branch_down);
+}
+
+void
+branch_update (branch *_branch)
+{
+  s32 up_count = _branch->branch_up->count;
+  s32 down_count = _branch->branch_down->count;
+  for (int i = 0; i < up_count; i++)
+    {
+      element_update (&(_branch->branch_up->data[i]));
+    }
+
+  for (int i = 0; i < down_count; i++)
+    {
+      element_update (&(_branch->branch_down->data[i]));
+    }
+  if (up_count == 0 || up_count == 0)
+    {
+      _branch->output = *_branch->input;
+    }
+  else
+    {
+      _branch->output = _branch->branch_up->data[up_count-1].output
+                        || _branch->branch_down->data[down_count-1].output;
+    }
+}
+
+void
+print_branch (branch *_branch)
+{
+  s32 input_color = RED;
+  s32 output_color = RED;
+  s32 variable_color = RED;
+  if (*_branch->input)
+    input_color = GREEN;
+  if (_branch->output)
+    output_color = GREEN;
+
+  printf ("\e[38;5;%d;1m-/\e[0m", input_color);
+  printf (" BRANCH UP ");
+
+  for (int i = 0; i < _branch->branch_up->count; i++)
+    {
+      print_element (_branch->branch_up->data + i);
+    }
+  printf ("\e[38;5;%d;1m-/\e[0m", output_color);
+  printf ("\e[38;5;%d;1m-\\\e[0m", input_color);
+  printf ("BRANCH DOWN");
+  for (int i = 0; i < _branch->branch_down->count; i++)
+    {
+      print_element (_branch->branch_down->data + i);
+    }
+  printf ("\e[38;5;%d;1m-\\\e[0m", output_color);
 }
 
 #endif // LADDER_H_
