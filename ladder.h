@@ -329,7 +329,7 @@ branch_update (branch *_branch)
     {
       element_update (&(_branch->branch_down->data[i]));
     }
-  if (up_count == 0 || up_count == 0)
+  if (up_count == 0 || down_count == 0)
     {
       _branch->output = *_branch->input;
     }
