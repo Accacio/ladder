@@ -15,42 +15,31 @@ main (int argc, char *argv[])
 
   b32 a;
   b32 b;
-  contact contact_a = { 0 };
-  contact contact_b = { 0 };
-  contact_a.variable = &a;
-  contact_a.elm_type = CONTACT;
-  contact_a.contact_type = NORMALLY_CLOSED;
-  contact_b.variable = &b;
-  contact_b.contact_type = NORMALLY_CLOSED;
+  contact contact_a;
+  contact_init(&contact_a, &b,NORMALLY_CLOSED);
+  contact contact_b;
+  contact_init(&contact_b, &b,NORMALLY_CLOSED);
 
-  coil coil_a = { 0 };
-  coil_a.variable = &a;
-  coil_a.elm_type = COIL;
-  coil_a.coil_type = COIL_NORMAL;
+  coil coil_a;
+  coil_normal_init(&coil_a,&a);
 
-  coil coil_b = { 0 };
-  coil_b.variable = &b;
-  coil_b.elm_type = COIL;
-  coil_b.coil_type = COIL_NORMAL;
-
-  /* return 0; */
+  coil coil_b;
+  coil_normal_init(&coil_b,&b);
 
   branch branch_a = { 0 };
-  branch_a.elm_type = BRANCH;
   branch_init (&arena,&branch_a);
 
   rung myrung = { 0 };
   rung_init (&arena, &myrung);
-  contact_a.input = &myrung.rail;
+
+  branch_add_element_up ((branch *) &branch_a,
+                         (element *) &contact_a);
+  branch_add_element_down ((branch *) &branch_a,
+                           (element *) &contact_b);
   rung_add_element (&myrung, (element *) &branch_a);
 
-  branch_add_element_up ((branch *) &myrung.elements->data[0],
-                         (element *) &contact_a);
-  branch_add_element_down ((branch *) &myrung.elements->data[0],
-                           (element *) &contact_b);
-
-  rung_add_element (&myrung, (element *) &contact_a);
-  rung_add_element (&myrung, (element *) &contact_b);
+  rung_add_element_copy (&arena,&myrung, (element *) &contact_a);
+  rung_add_element_copy (&arena,&myrung, (element *) &contact_b);
   rung_add_element (&myrung, (element *) &coil_a);
   rung_add_element (&myrung, (element *) &coil_b);
 

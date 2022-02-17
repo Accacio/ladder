@@ -8,9 +8,18 @@
 #include "./utils.h"
 #include "./memory.h"
 
+enum
+{
+  CONTACT,
+  COIL,
+  BRANCH,
+} element_type;
+
+typedef s32 type;
+
 typedef struct
 {
-  s32 elm_type;
+  type elm_type;
   b32 *input;
   b32 output;
   s8 contact_type;
@@ -24,6 +33,30 @@ enum
   NORMALLY_CLOSED,
   /* TODO(accacio): implement positive and negative */
 } contact_type;
+
+void
+contact_normallyopen_init (contact*_contact,b32*variable)
+{
+
+  _contact->variable = variable;
+  _contact->elm_type = CONTACT;
+  _contact->contact_type = NORMALLY_OPEN;
+}
+
+void
+contact_normallyclosed_init (contact*_contact,b32*variable)
+{
+  _contact->variable = variable;
+  _contact->elm_type = CONTACT;
+  _contact->contact_type = NORMALLY_CLOSED;
+}
+void
+contact_init (contact*_contact,b32*variable,type _type)
+{
+  _contact->variable = variable;
+  _contact->elm_type = CONTACT;
+  _contact->contact_type = _type;
+}
 
 void
 contact_update (contact *_contact)
@@ -89,6 +122,14 @@ enum
   COIL_NORMAL,
   /* TODO(accacio): implement set and reset */
 } coil_type;
+
+void
+coil_normal_init (coil *_coil, b32 *variable)
+{
+  _coil->variable = variable;
+  _coil->elm_type = COIL;
+  _coil->coil_type = COIL_NORMAL;
+}
 
 void
 coil_update (coil *_coil)
@@ -169,13 +210,6 @@ typedef union _element
   branch elm_branch;
 } element;
 
-enum
-{
-  CONTACT,
-  COIL,
-  BRANCH,
-} element_type;
-
 void print_branch (branch *);
 void branch_update (branch *);
 
@@ -219,7 +253,7 @@ element_update (element *_element)
 
 typedef struct _element_list
 {
-  element *data;
+  element **data;
   s32 count;
   s32 max;
 } element_list;
@@ -229,23 +263,39 @@ element_list_init (Arena *arena, element_list *list)
 {
   list->max = 10;
   list->count = 0;
-
-  list->data = push_array (arena, list->max, element);
-  memset (list->data, 0, list->max * sizeof (element));
+  list->data = push_array (arena, list->max, element *);
 }
 
 void
-element_list_add (element_list *list, element *_element, b32 *initial)
+element_list_add_copy (Arena *arena, element_list *list, element *_element,
+                       b32 *initial)
 {
-  element *cur_element = &list->data[list->count];
-  *cur_element = *_element;
+  element **cur_element = &list->data[list->count];
+  *cur_element = push_struct (arena, element);
+  **cur_element = *_element;
   if (list->count == 0)
     {
-      cur_element->input = (initial);
+      (*cur_element)->input = (initial);
     }
   else
     {
-      cur_element->input = &(list->data[list->count - 1]).output;
+      (*cur_element)->input = &((list->data[list->count - 1])->output);
+    }
+
+  list->count += 1;
+}
+void
+element_list_add (element_list *list, element *_element, b32 *initial)
+{
+  element **cur_element = &list->data[list->count];
+  *cur_element = _element;
+  if (list->count == 0)
+    {
+      (*cur_element)->input = (initial);
+    }
+  else
+    {
+      (*cur_element)->input = &((list->data[list->count - 1])->output);
     }
 
   list->count += 1;
@@ -269,8 +319,7 @@ rung_init (Arena *arena, rung *_rung)
   _rung->rail = 1;
 
   _rung->elements = push_struct (arena, element_list);
-  memset (_rung->elements, 0, sizeof (element_list));
-  element_list_init (arena,_rung->elements);
+  element_list_init (arena, _rung->elements);
 }
 void
 rung_destroy (rung *_rung)
@@ -279,6 +328,11 @@ rung_destroy (rung *_rung)
   /* free (_rung->elements); */
 }
 
+void
+rung_add_element_copy (Arena *arena, rung *_rung, element *_element)
+{
+  element_list_add_copy (arena, _rung->elements, _element, &_rung->rail);
+}
 void
 rung_add_element (rung *_rung, element *_element)
 {
@@ -290,7 +344,7 @@ rung_update (rung *_rung)
 {
   for (int i = 0; i < _rung->elements->count; i++)
     {
-      element_update (&(_rung->elements->data[i]));
+      element_update ((_rung->elements->data[i]));
     }
 }
 void
@@ -298,21 +352,21 @@ print_rung (rung *_rung)
 {
   for (int i = 0; i < _rung->elements->count; i++)
     {
-      print_element (_rung->elements->data + i);
+      print_element (*(_rung->elements->data + i));
     }
   printf ("\n");
 }
 
 void
-branch_init (Arena*arena,branch *_branch)
+branch_init (Arena *arena, branch *_branch)
 {
-  _branch->branch_up = push_struct(arena, element_list);
-  memset (_branch->branch_up, 0, sizeof (element_list));
-  element_list_init (arena,_branch->branch_up);
+  _branch->elm_type = BRANCH;
+  _branch->input = (b32*)_branch;
+  _branch->branch_up = push_struct (arena, element_list);
+  element_list_init (arena, _branch->branch_up);
 
-  _branch->branch_down = push_struct(arena, element_list);
-  memset (_branch->branch_down, 0, sizeof (element_list));
-  element_list_init (arena,_branch->branch_down);
+  _branch->branch_down = push_struct (arena, element_list);
+  element_list_init (arena, _branch->branch_down);
 }
 
 void
@@ -322,12 +376,12 @@ branch_update (branch *_branch)
   s32 down_count = _branch->branch_down->count;
   for (int i = 0; i < up_count; i++)
     {
-      element_update (&(_branch->branch_up->data[i]));
+      element_update ((_branch->branch_up->data[i]));
     }
 
   for (int i = 0; i < down_count; i++)
     {
-      element_update (&(_branch->branch_down->data[i]));
+      element_update ((_branch->branch_down->data[i]));
     }
   if (up_count == 0 || down_count == 0)
     {
@@ -335,8 +389,8 @@ branch_update (branch *_branch)
     }
   else
     {
-      _branch->output = _branch->branch_up->data[up_count - 1].output
-                        || _branch->branch_down->data[down_count - 1].output;
+      _branch->output = _branch->branch_up->data[up_count - 1]->output
+                        || _branch->branch_down->data[down_count - 1]->output;
     }
 }
 
@@ -356,14 +410,14 @@ print_branch (branch *_branch)
 
   for (int i = 0; i < _branch->branch_up->count; i++)
     {
-      print_element (_branch->branch_up->data + i);
+      print_element (*(_branch->branch_up->data + i));
     }
   printf ("\e[38;5;%d;1m-/\e[0m", output_color);
   printf ("\e[38;5;%d;1m-\\\e[0m", input_color);
   printf ("BRANCH DOWN");
   for (int i = 0; i < _branch->branch_down->count; i++)
     {
-      print_element (_branch->branch_down->data + i);
+      print_element (*(_branch->branch_down->data + i));
     }
   printf ("\e[38;5;%d;1m-\\\e[0m", output_color);
 }
