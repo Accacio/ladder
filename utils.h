@@ -3,6 +3,16 @@
 
 #include <stdint.h>
 
+#define Assert(exp)                                                           \
+  if (!(exp))                                                                 \
+    {                                                                         \
+      printf ("%s:%d: Assert \"%s\" failed\n", __FILE__, __LINE__, #exp);     \
+      *(volatile int *) 0 = 0;                                                \
+    }
+
+#define Kilobytes(num) (num)*1024LL
+#define Megabytes(num) Kilobytes((num))*1024LL
+
 typedef uint32_t b32;
 
 typedef uint64_t u64;

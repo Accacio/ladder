@@ -6,6 +6,7 @@
 #include <string.h>
 #include <assert.h>
 #include "./utils.h"
+#include "./memory.h"
 
 typedef struct
 {
@@ -30,11 +31,11 @@ contact_update (contact *_contact)
   switch (_contact->contact_type)
     {
     case NORMALLY_OPEN:
-      _contact->variable_old =*(_contact->variable);
-      _contact->output =  _contact->variable_old && *(_contact->input);
+      _contact->variable_old = *(_contact->variable);
+      _contact->output = _contact->variable_old && *(_contact->input);
       break;
     case NORMALLY_CLOSED:
-      _contact->variable_old =*(_contact->variable);
+      _contact->variable_old = *(_contact->variable);
       _contact->output = !_contact->variable_old && *(_contact->input);
       break;
     default:
@@ -224,11 +225,12 @@ typedef struct _element_list
 } element_list;
 
 void
-element_list_init (element_list *list)
+element_list_init (Arena *arena, element_list *list)
 {
   list->max = 10;
   list->count = 0;
-  list->data = malloc (list->max * sizeof (element));
+
+  list->data = push_array (arena, list->max, element);
   memset (list->data, 0, list->max * sizeof (element));
 }
 
@@ -252,7 +254,7 @@ element_list_add (element_list *list, element *_element, b32 *initial)
 void
 element_list_destroy (element_list *list)
 {
-  free (list->data);
+  /* free (list->data); */
 }
 
 typedef struct
@@ -262,18 +264,19 @@ typedef struct
 } rung;
 
 void
-rung_init (rung *_rung)
+rung_init (Arena *arena, rung *_rung)
 {
   _rung->rail = 1;
-  _rung->elements = malloc (sizeof (element_list));
+
+  _rung->elements = push_struct (arena, element_list);
   memset (_rung->elements, 0, sizeof (element_list));
-  element_list_init (_rung->elements);
+  element_list_init (arena,_rung->elements);
 }
 void
 rung_destroy (rung *_rung)
 {
   element_list_destroy (_rung->elements);
-  free (_rung->elements);
+  /* free (_rung->elements); */
 }
 
 void
@@ -301,15 +304,15 @@ print_rung (rung *_rung)
 }
 
 void
-branch_init (branch *_branch)
+branch_init (Arena*arena,branch *_branch)
 {
-  _branch->branch_up = malloc (sizeof (element_list));
+  _branch->branch_up = push_struct(arena, element_list);
   memset (_branch->branch_up, 0, sizeof (element_list));
-  element_list_init (_branch->branch_up);
+  element_list_init (arena,_branch->branch_up);
 
-  _branch->branch_down = malloc (sizeof (element_list));
+  _branch->branch_down = push_struct(arena, element_list);
   memset (_branch->branch_down, 0, sizeof (element_list));
-  element_list_init (_branch->branch_down);
+  element_list_init (arena,_branch->branch_down);
 }
 
 void
@@ -332,8 +335,8 @@ branch_update (branch *_branch)
     }
   else
     {
-      _branch->output = _branch->branch_up->data[up_count-1].output
-                        || _branch->branch_down->data[down_count-1].output;
+      _branch->output = _branch->branch_up->data[up_count - 1].output
+                        || _branch->branch_down->data[down_count - 1].output;
     }
 }
 
